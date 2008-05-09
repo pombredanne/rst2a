@@ -58,7 +58,77 @@ DEFAULT_SETTINGS = {
 
 class ReSTDocument (object):
     
+    """
+    Hold a reST document and associated objects.
+    
+    The ``ReSTDocument`` class is a class for holding, and carrying out
+    procedures on, a reStructuredText document. An instance has several useful
+    attributes:
+        
+        ``fp``
+            The ``fp`` attribute holds a reference to the file handle used to
+            initialize the ``ReSTDocument`` instance. By default, the document
+            is read, decoded and parsed upon initialization, but it is useful
+            to hold the file handle in the case of having to close the file
+            after initialization, or to get information about an instance.
+        
+        ``document_raw``
+            This attribute holds a utf-8 string of the document, read from the
+            current position of the document's file handle (as passed upon
+            initialization). This is useful for viewing the original document,
+            and/or saving it to another file.
+        
+        ``document``
+            This attribute holds the docutils-parsed document tree of the reST
+            document. The class for this is ``docutils.nodes.document``, and
+            holding it allows for transformations and modifications to be made
+            to the document tree before writing.
+        
+        ``default_settings``
+            This holds a dictionary of default settings, passed to any writer
+            when someone tries to write the document out to another format. It
+            may be passed in the ``settings`` keyword argument during
+            initialization, but by default takes the value of the
+            ``DEFAULT_SETTINGS`` dictionary found within this namespace.
+        
+        ``img_localizer``
+            Holds an image localizer instance specific to this document's
+            doctree; see the documentation in ``rst2a.images`` for more
+            information on ``ImageLocalizer`` instances.
+    """
+    
     def __init__(self, doc_handle, settings=DEFAULT_SETTINGS):
+        """
+        Initialize a ``ReSTDocument`` instance, with a file and some settings.
+        
+        The initialization method for the ``ReSTDocument`` class will
+        initialize an instance with a document, as read from the first
+        positional argument, and with a set of conversion settings given by the
+        ``settings`` keyword argument. By default, this will take the value of
+        the ``DEFAULT_SETTINGS`` dictionary, located within this namespace.
+        
+        This method will read the data from ``doc_handle`` by calling its
+        ``read`` method with no arguments, and then call the returned string's
+        ``decode`` method with 'utf-8' as the argument. On most file-like
+        classes in the Python stdlib (e.g. files, URL connections, StringIOs),
+        the former will return a ``str`` and the latter will produce a
+        ``unicode`` instance. For a third-party class to work, just make sure
+        its ``read`` method returns a string.
+        
+        The read document will then be processed using
+        ``docutils.core.publish_doctree``. Ensure that documents are valid reST
+        inputs - failure to do so will probably produce an error upon
+        initialization of the ``ReSTDocument`` instance.
+        
+        An ``ImageLocalizer`` instance is wrapped around the produced doctree;
+        this eases the strain of LaTeX and PDF conversion greatly.
+        
+        If the Python installation from which this is run does not have the
+        ``pdflatex`` command available (this includes most win32 systems), then
+        PDF support will be removed from the resulting ``ReSTDocument``
+        instance. If the ``tidy`` module is not available, then XHTML
+        conversion will likewise be removed.
+        """
         self.fp = doc_handle
         # Make sure document is read in utf-8. This will avoid any surprises
         # down the line, when converting the document.
@@ -80,6 +150,42 @@ class ReSTDocument (object):
     
     def to_latex(self, stylesheet_url='',
         settings=latex.DEFAULT_LATEX_OVERRIDES, *args, **kwargs):
+        """
+        Convert a document tree to LaTeX format, returning a string and a list.
+        
+        The ``to_latex`` method will return a string containing the produced
+        LaTeX file and a list containing the locations of temporary files
+        created during the LaTeX conversion. The LaTeX string returned will
+        most likely be a ``unicode``, and the list of files will be (possibly)
+        a .tex file (the stylesheet) followed by several image files.
+        
+        The LaTeX stylesheet is passed in the ``stylesheet_url`` keyword. The
+        way of dealing with the stylesheet is quite complex, so here's a
+        summary of the possibile configurations:
+            
+            1)  You pass a string which *is* the stylesheet, equivalent to the
+                results of an ``open('filename').read()``. In this case, a .tex
+                file *will* be included in the list of temporary files.
+            
+            2)  You pass a filename *pointing to* the stylesheet, equivalent to
+                the last example's ``'filename'``. This would *not* create a
+                .tex file in the temporary file list.
+            
+            3)  You pass a file-like object which *contains* the stylesheet,
+                which is the same as passing ``open('filename')``. As with
+                example 1, a .tex file *will* be included in the returned list
+                of temporary files.
+        
+        The ``settings`` keyword argument specifies a particular dictionary of
+        docutils writer settings to be passed to the LaTeX writer. They will
+        augment the ``ReSTDocument`` instance's ``default_settings`` attribute,
+        but keywords specified in ``settings`` will override any conflicts in
+        the instance-specific settings. This defaults to the
+        ``DEFAULT_LATEX_OVERRIDES`` dictionary, in the ``rst2a.latex`` module.
+        
+        Any additional positional or keyword arguments will be passed to the
+        ``rst2a.latex.doctree_to_latex`` function.
+        """
         # Create a set of conversion settings based on those given and the
         # default settings held in the ``ReSTDocument`` instance.
         conversion_settings = copy(self.default_settings)
